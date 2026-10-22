@@ -5,6 +5,7 @@ import { InfoPanel } from './components/InfoPanel'
 import { ParamsForm } from './components/ParamsForm'
 import { LiveChart } from './components/LiveChart'
 import { RecordControls } from './components/RecordControls'
+import { useTheme } from './hooks/useTheme'
 import type {
   ConnectionState,
   DataSelection,
@@ -74,6 +75,7 @@ export default function App() {
     timeDomain: false,
     frequencyDomain: true,
   })
+  const { theme, toggle } = useTheme()
 
   const chartMode = mode === 'cw' ? 'cw' : 'fmcw'
 
@@ -85,6 +87,8 @@ export default function App() {
         host="192.168.1.2"
         commandPort={1024}
         streamPort={47475}
+        theme={theme}
+        onToggleTheme={toggle}
       />
       <main className="layout">
         <div className="left-column">
@@ -98,7 +102,7 @@ export default function App() {
           />
         </div>
         <div className="right-column">
-          <LiveChart mode={chartMode} />
+          <LiveChart mode={chartMode} theme={theme} />
           <div className="bottom-row">
             <InfoPanel info={MOCK_INFO} />
             <RecordControls

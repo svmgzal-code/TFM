@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
+import type { Theme } from '../hooks/useTheme'
 
 interface LiveChartProps {
   mode: 'fmcw' | 'cw'
+  theme: Theme
 }
 
 // Fake FD magnitude with a couple of plausible target peaks over range.
@@ -27,13 +29,17 @@ function fakeFdData() {
   return [x, y] as uPlot.AlignedData
 }
 
-export function LiveChart({ mode }: LiveChartProps) {
+export function LiveChart({ mode, theme }: LiveChartProps) {
   const targetRef = useRef<HTMLDivElement>(null)
   const data = useMemo(fakeFdData, [])
 
   useEffect(() => {
     const target = targetRef.current
     if (!target) return
+
+    // Derive colors directly from the theme prop to eliminate race conditions
+    const axisColor = theme === 'dark' ? '#e6edf3' : '#24292e'
+    const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0, 0, 0, 0.06)'
 
     const opts: uPlot.Options = {
       width: target.clientWidth,
@@ -48,8 +54,12 @@ export function LiveChart({ mode }: LiveChartProps) {
         { label: 'FD magnitude', stroke: '#4cc2ff', width: 1, fill: 'rgba(76, 194, 255, 0.08)' },
       ],
       axes: [
-        { label: mode === 'cw' ? 'Velocity (m/s)' : 'Range (m)', grid: { stroke: 'rgba(255,255,255,0.06)' } },
-        { label: 'Level (dB)', grid: { stroke: 'rgba(255,255,255,0.06)' } },
+        {
+          label: mode === 'cw' ? 'Velocity (m/s)' : 'Range (m)',
+          stroke: axisColor,
+          grid: { stroke: gridColor },
+        },
+        { label: 'Level (dB)', stroke: axisColor, grid: { stroke: gridColor } },
       ],
       cursor: { show: true, points: { size: 6 } },
       legend: { show: true },
@@ -57,7 +67,7 @@ export function LiveChart({ mode }: LiveChartProps) {
 
     const plot = new uPlot(opts, data, target)
     return () => plot.destroy()
-  }, [data, mode])
+  }, [data, mode, theme])
 
   return (
     <section className="card chart-card">

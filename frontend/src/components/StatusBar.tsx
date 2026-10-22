@@ -1,4 +1,6 @@
 import type { ConnectionState } from '../types'
+import type { Theme } from '../hooks/useTheme'
+import { ThemeToggle } from './ThemeToggle'
 
 interface StatusBarProps {
   connection: ConnectionState
@@ -6,6 +8,8 @@ interface StatusBarProps {
   host: string
   commandPort: number
   streamPort: number
+  theme: Theme
+  onToggleTheme: () => void
 }
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
@@ -20,6 +24,8 @@ export function StatusBar({
   host,
   commandPort,
   streamPort,
+  theme,
+  onToggleTheme,
 }: StatusBarProps) {
   return (
     <div className="status-bar">
@@ -32,6 +38,7 @@ export function StatusBar({
       <div className="status-bar-right">
         <span className={`badge badge-${connection}`}>{CONNECTION_LABEL[connection]}</span>
         {recording && <span className="badge badge-recording">● Recording</span>}
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
     </div>
   )
