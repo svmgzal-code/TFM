@@ -46,17 +46,23 @@ func (c *CommandClient) Close() error {
 	return c.conn.Close()
 }
 
-// Command performs one command transaction:
+// Command performs one command transaction using the client's default timeout.
+// See CommandWithTimeout.
+func (c *CommandClient) Command(ctx context.Context, id uint16, payload []byte, wantReply int) ([]byte, error) {
+	return c.CommandWithTimeout(ctx, id, payload, wantReply, c.timeout)
+}
+
+// CommandWithTimeout performs one command transaction with an explicit timeout:
 //
 //	write CommandID (u16) -> read+verify echo -> write payload (if any) ->
 //	read reply payload (if wantReply > 0).
 //
 // It is safe for concurrent use; requests are serialized and each has a deadline.
-func (c *CommandClient) Command(ctx context.Context, id uint16, payload []byte, wantReply int) ([]byte, error) {
+func (c *CommandClient) CommandWithTimeout(ctx context.Context, id uint16, payload []byte, wantReply int, timeout time.Duration) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	deadline := time.Now().Add(c.timeout)
+	deadline := time.Now().Add(timeout)
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}

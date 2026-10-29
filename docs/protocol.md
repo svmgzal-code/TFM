@@ -18,7 +18,7 @@ Items marked **[VERIFY]** are assumptions or unclear in the manual. See the last
 | Command connection | radar IP : 1024 (default)          | Default 192.168.1.2:1024, gateway 192.168.1.1, mask 255.255.254.0. Defaults are valid only ~10 s after power-up; afterwards the radar uses the user-defined IP/port (2.1.3). |
 | Stream connection  | same IP : 47475 (47475-47480 exist) | Only exists when opMode = 1. Same data goes to every connected socket (2.8.1). |
 
-The app must let the user configure host, command port and stream port.
+The app lets the user configure host and command port. The stream port is fixed at 47475.
 Changing the radar's IP/port is out of scope (commands 0x0030-0x0032).
 
 ## 3. Command framing (Ethernet, 2.3.3)
@@ -116,7 +116,7 @@ which means **bands 0-4 only**. The UI must warn on anything above 24.250 GHz.
 ## 6. Automatic Operation mode (2.8)
 
 ### 6.1 How it works
-- Ethernet only. Enabled by 0x0020 with opMode = 1; disabled with opMode = 0.
+- Ethernet only. Enabled by 0x0020 with opMode = 1; disabled with opMode = 0 (this mode is activated upon pressing the record button)
 - With opMode = 1 the radar opens six extra TCP sockets (47475-47480) on the user-defined IP.
   The normal command port keeps working.
 - The radar measures and transmits **only while at least one stream socket is connected**.
@@ -131,10 +131,10 @@ which means **bands 0-4 only**. The UI must warn on anything above 24.250 GHz.
 | 0   | 1     | 0 = FMCW, 1 = CW | yes |
 | 1   | 2     | FMCW only: 0 = UP-ramp, 1 = DOWN-ramp | yes |
 | 2   | 4     | system time block | yes (always on) |
-| 3   | 8     | temperatures + Tx power block | yes |
+| 3   | 8     | temperatures + Tx power block | no |
 | 4   | 16    | header block | yes (always on) |
-| 5   | 32    | time-domain data block | yes |
-| 6   | 64    | frequency-domain data block | yes |
+| 5   | 32    | time-domain data block | no |
+| 6   | 64    | frequency-domain data block | yes (always on) |
 | 7   | 128   | Range Finder result | **no, always 0** |
 | 8   | 256   | Human Tracker result | **no, always 0** |
 | 9-15| -     | undefined | always 0 |
@@ -146,8 +146,9 @@ Mode mapping used by the app:
 | `fmcw_down` | 0     | 1     |
 | `cw`        | 1     | 0     |
 
-Examples: FMCW up + time + temps + header + FD = `0x005C` (92). CW + header + FD = `0x0051`.
-FMCW down + header + FD = `0x0052`.
+The app always enables bits 2 (system time), 4 (header) and 6 (frequency-domain); bits 3
+(temperatures/Tx power) and 5 (time-domain) are never set, and bits 7-15 are always 0.
+App autoMeasType masks: FMCW up = `0x0054`, FMCW down = `0x0056`, CW = `0x0055`.
 
 ### 6.3 Frame layout (2.8.2)
 ```
@@ -242,19 +243,21 @@ host  -> 28 00
 radar -> 28 00
 host  -> 04 02 02 00 01 00 00 0F 00 00 00 01 00 00 00 00 00      (17 bytes)
 ```
-Set operation params (opMode 1, autoMeasType 0x005C, autoDelay 100 ms):
+Set operation params (opMode 1, autoMeasType 0x0054, autoDelay 100 ms):
 ```
 host  -> 20 00
 radar -> 20 00
-host  -> 01 00 5C 00 64 00
+host  -> 01 00 54 00 64 00
 ```
 Start of a stream frame for that autoMeasType:
 ```
-AA AA 55 55 5C 00 | 8 B system time | 12 B temps/power | 15 B header | FD block
+AA AA 55 55 54 00 | 8 B system time | 15 B header | FD block
 ```
 
 ## 9. Behavioural notes
 - 0x0028 and 0x0020 write EEPROM: never in a loop, never on every UI change.
+- Applying settings always writes 0x0020 with opMode = 1 (automatic) and the mode's autoMeasType;
+  autoDelay is a fixed backend default (100 ms) until exposed in the UI.
 - Do not change system or operation parameters while a stream socket is connected. The frame
   layout changes mid-stream. Stop the stream, apply, verify, restart.
 - Stopping = closing the stream socket. The radar stays in automatic mode (opMode persists).

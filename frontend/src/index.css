@@ -376,6 +376,12 @@ input:disabled {
   accent-color: var(--accent);
 }
 
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
 /* Warning banner */
 .warning-banner {
   background: rgba(210, 153, 34, 0.12);

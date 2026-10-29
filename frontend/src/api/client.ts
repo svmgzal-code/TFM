@@ -1,4 +1,4 @@
-import type { RadarStatus } from '../types'
+import type { ParamsUpdate, RadarStatus, SystemParams } from '../types'
 
 const BASE = '/api'
 
@@ -39,4 +39,15 @@ export function disconnect(): Promise<RadarStatus> {
 
 export function getStatus(): Promise<RadarStatus> {
   return request<RadarStatus>('/status')
+}
+
+export function getParams(): Promise<SystemParams> {
+  return request<SystemParams>('/params')
+}
+
+export function updateParams(update: ParamsUpdate): Promise<SystemParams> {
+  return request<SystemParams>('/params', {
+    method: 'PUT',
+    body: JSON.stringify(update),
+  })
 }

@@ -3,7 +3,7 @@ import type { ConnectionState } from '../types'
 
 interface ConnectFormProps {
   connection: ConnectionState
-  onConnect: (host: string, commandPort: number, streamPort: number) => Promise<void>
+  onConnect: (host: string, commandPort: number) => Promise<void>
   onDisconnect: () => Promise<void>
 }
 
@@ -16,7 +16,6 @@ const STATUS_LABEL: Record<ConnectionState, string> = {
 export function ConnectForm({ connection, onConnect, onDisconnect }: ConnectFormProps) {
   const [host, setHost] = useState('192.168.1.2')
   const [commandPort, setCommandPort] = useState('1024')
-  const [streamPort, setStreamPort] = useState('47475')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,7 +28,7 @@ export function ConnectForm({ connection, onConnect, onDisconnect }: ConnectForm
       if (isConnected) {
         await onDisconnect()
       } else {
-        await onConnect(host, Number(commandPort), Number(streamPort))
+        await onConnect(host, Number(commandPort))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -57,15 +56,6 @@ export function ConnectForm({ connection, onConnect, onDisconnect }: ConnectForm
           id="command-port"
           value={commandPort}
           onChange={(e) => setCommandPort(e.target.value)}
-          disabled={isConnected || busy}
-        />
-      </div>
-      <div className="field-row two-col">
-        <label htmlFor="stream-port">Stream port</label>
-        <input
-          id="stream-port"
-          value={streamPort}
-          onChange={(e) => setStreamPort(e.target.value)}
           disabled={isConnected || busy}
         />
       </div>

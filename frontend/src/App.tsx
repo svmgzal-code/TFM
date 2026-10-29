@@ -7,17 +7,12 @@ import { LiveChart } from './components/LiveChart'
 import { RecordControls } from './components/RecordControls'
 import { useTheme } from './hooks/useTheme'
 import { useStatus } from './hooks/useStatus'
+import { useParams } from './hooks/useParams'
 import { connect, disconnect } from './api/client'
-import type {
-  DataSelection,
-  MeasurementMode,
-  RadarInfo,
-  Recording,
-  SystemParams,
-} from './types'
+import type { MeasurementMode, RadarInfo, Recording } from './types'
 
 // Hardcoded mock data — replaced by real backend data in a later slice.
-// TODO: replace with real GET /api/info, GET /api/params, GET /api/recordings.
+// TODO: replace with real GET /api/info, GET /api/recordings.
 const MOCK_INFO: RadarInfo = {
   firmwareVersion: '4.1.2',
   firmwareRevision: 104,
@@ -30,24 +25,6 @@ const MOCK_INFO: RadarInfo = {
   radarNumber: 0x0a1b2c3d,
   flashingDate: '20150301',
   phaseOffsetDeg: 0,
-}
-
-const MOCK_PARAMS: SystemParams = {
-  band: 4,
-  tRampMs: 2,
-  zeroPad: 2,
-  fftDataType: 0,
-  frontendEn: true,
-  powerSaveEn: false,
-  norm: true,
-  actChannels: 0x000f,
-  freqPoints: 256,
-  minFreqMHz: 0,
-  manualBWMHz: 0,
-  attenuation: 0,
-  rangeBinUm: 599600,
-  dopplerBinUmS: 0,
-  frequencyBinHz: 0,
 }
 
 const MOCK_RECORDINGS: Recording[] = [
@@ -70,26 +47,24 @@ const MOCK_RECORDINGS: Recording[] = [
 export default function App() {
   const [recording, setRecording] = useState(false)
   const [mode, setMode] = useState<MeasurementMode>('fmcw_up')
-  const [selection, setSelection] = useState<DataSelection>({
-    temperatures: true,
-    timeDomain: false,
-    frequencyDomain: true,
-  })
   const { theme, toggle } = useTheme()
   const { status, refresh } = useStatus()
+  const { params, apply, refresh: refreshParams } = useParams()
 
   const handleConnect = useCallback(
-    async (host: string, commandPort: number, streamPort: number) => {
-      await connect({ host, commandPort, streamPort })
+    async (host: string, commandPort: number) => {
+      await connect({ host, commandPort, streamPort: 47475 })
       await refresh()
+      await refreshParams()
     },
-    [refresh],
+    [refresh, refreshParams],
   )
 
   const handleDisconnect = useCallback(async () => {
     await disconnect()
     await refresh()
-  }, [refresh])
+    await refreshParams()
+  }, [refresh, refreshParams])
 
   const chartMode = mode === 'cw' ? 'cw' : 'fmcw'
 
@@ -111,13 +86,14 @@ export default function App() {
             onConnect={handleConnect}
             onDisconnect={handleDisconnect}
           />
-          <ParamsForm
-            params={MOCK_PARAMS}
-            mode={mode}
-            selection={selection}
-            onModeChange={setMode}
-            onSelectionChange={setSelection}
-          />
+          {params ? (
+            <ParamsForm params={params} mode={mode} onModeChange={setMode} onApply={apply} />
+          ) : (
+            <section className="card">
+              <h2>Parameters</h2>
+              <p className="empty-note">Connect to a radar to edit parameters.</p>
+            </section>
+          )}
         </div>
         <div className="right-column">
           <LiveChart mode={chartMode} theme={theme} />

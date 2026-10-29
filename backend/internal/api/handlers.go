@@ -61,9 +61,12 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if req.Host == "" || req.CommandPort <= 0 || req.StreamPort <= 0 {
-		writeError(w, http.StatusBadRequest, "host, commandPort and streamPort are required")
+	if req.Host == "" || req.CommandPort <= 0 {
+		writeError(w, http.StatusBadRequest, "host and commandPort are required")
 		return
+	}
+	if req.StreamPort <= 0 {
+		req.StreamPort = radar.DefaultStreamPort
 	}
 
 	if err := s.session.Connect(r.Context(), req.Host, req.CommandPort, req.StreamPort); err != nil {
@@ -98,6 +101,71 @@ func (s *Server) handleParams(w http.ResponseWriter, r *http.Request) {
 	params, ok := s.session.Params()
 	if !ok {
 		writeError(w, http.StatusConflict, "not connected")
+		return
+	}
+	writeJSON(w, http.StatusOK, toParamsResponse(params))
+}
+
+type paramsUpdateRequest struct {
+	TRampMs     uint8  `json:"tRampMs"`
+	ZeroPad     uint8  `json:"zeroPad"`
+	FrontendEn  bool   `json:"frontendEn"`
+	PowerSaveEn bool   `json:"powerSaveEn"`
+	Norm        bool   `json:"norm"`
+	ActChannels uint16 `json:"actChannels"`
+	MinFreqMHz  uint16 `json:"minFreqMHz"`
+	ManualBWMHz uint16 `json:"manualBWMHz"`
+	Attenuation uint8  `json:"attenuation"`
+	Mode        string `json:"mode"`
+}
+
+func (s *Server) handleParamsPut(w http.ResponseWriter, r *http.Request) {
+	var req paramsUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	mode, err := protocol.ParseMode(req.Mode)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	switch req.ZeroPad {
+	case 1, 2, 4, 8:
+	default:
+		writeError(w, http.StatusBadRequest, "zeroPad must be 1, 2, 4 or 8")
+		return
+	}
+	if req.Attenuation > 7 {
+		writeError(w, http.StatusBadRequest, "attenuation must be 0-7")
+		return
+	}
+	if req.ActChannels == 0 {
+		writeError(w, http.StatusBadRequest, "at least one receiver channel must be active")
+		return
+	}
+	if req.MinFreqMHz == 0 || req.ManualBWMHz == 0 {
+		writeError(w, http.StatusBadRequest, "minFreqMHz and manualBWMHz are required")
+		return
+	}
+
+	upd := radar.ParamsUpdate{
+		TRamp:       req.TRampMs,
+		ZeroPad:     req.ZeroPad,
+		FrontendEn:  req.FrontendEn,
+		PowerSaveEn: req.PowerSaveEn,
+		Norm:        req.Norm,
+		ActChannels: req.ActChannels,
+		MinFreq:     req.MinFreqMHz,
+		ManualBW:    req.ManualBWMHz,
+		Attenuation: req.Attenuation,
+		Mode:        mode,
+	}
+
+	params, err := s.session.ApplyParams(r.Context(), upd)
+	if err != nil {
+		writeError(w, mapError(err), err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, toParamsResponse(params))

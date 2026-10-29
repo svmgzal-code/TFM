@@ -66,3 +66,22 @@ func decodeSystemParams(b []byte) SystemParams {
 		Attenuation: b[16],
 	}
 }
+
+// EncodeSystemParams encodes the 17-byte 0x0028 payload (little-endian, unpadded).
+func EncodeSystemParams(p SystemParams) []byte {
+	b := make([]byte, SystemParamsSize)
+	b[0] = p.Band
+	b[1] = p.TRamp
+	b[2] = p.ZeroPad
+	b[3] = p.FftDataType
+	b[4] = p.FrontendEn
+	b[5] = p.PowerSaveEn
+	b[6] = p.Norm
+	binary.LittleEndian.PutUint16(b[7:9], p.ActChannels)
+	b[9] = p.AdvancedEn
+	binary.LittleEndian.PutUint16(b[10:12], p.FreqPoints)
+	binary.LittleEndian.PutUint16(b[12:14], p.MinFreq)
+	binary.LittleEndian.PutUint16(b[14:16], p.ManualBW)
+	b[16] = p.Attenuation
+	return b
+}

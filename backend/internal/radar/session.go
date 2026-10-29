@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"tfm/backend/internal/protocol"
 )
@@ -17,6 +18,13 @@ const (
 	StateConnected
 	StateStreaming
 )
+
+// DefaultStreamPort is the fixed radar stream port (47475; 47475-47480 exist).
+const DefaultStreamPort = 47475
+
+// DefaultAutoDelayMs is the fixed minimum cycle time written by 0x0020 until the UI
+// exposes it as a user setting.
+const DefaultAutoDelayMs = 100
 
 func (s State) String() string {
 	switch s {
@@ -157,4 +165,108 @@ func (s *Session) Params() (protocol.Params, bool) {
 		return protocol.Params{}, false
 	}
 	return s.params, true
+}
+
+// ParamsUpdate carries the user-editable subset of the system parameters plus the
+// measurement mode. Fields not present here (Band, FftDataType, AdvancedEn,
+// FreqPoints) are preserved from the device during apply.
+type ParamsUpdate struct {
+	TRamp       uint8
+	ZeroPad     uint8
+	FrontendEn  bool
+	PowerSaveEn bool
+	Norm        bool
+	ActChannels uint16
+	MinFreq     uint16
+	ManualBW    uint16
+	Attenuation uint8
+	Mode        protocol.Mode
+}
+
+// ApplyParams writes the given settings to the radar using the read-modify-write
+// sequence: 0x0029 read -> merge -> 0x0028 write -> 0x0029 read-back -> 0x0020 write.
+// The 0x0020 write always re-enables automatic mode with the mode's autoMeasType.
+//
+// Stream stop/restart around an apply is added when streaming lands (StateStreaming).
+func (s *Session) ApplyParams(ctx context.Context, upd ParamsUpdate) (protocol.Params, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.state == StateDisconnected || s.client == nil {
+		return protocol.Params{}, ErrNotConnected
+	}
+
+	timeout := commandCycleTimeout(upd)
+
+	raw, err := s.client.CommandWithTimeout(ctx, protocol.CmdIDSendParams, nil, protocol.ParamsReplySize, timeout)
+	if err != nil {
+		return protocol.Params{}, fmt.Errorf("radar: apply read params (0x0029): %w", err)
+	}
+	current, err := protocol.DecodeParams(raw)
+	if err != nil {
+		return protocol.Params{}, err
+	}
+
+	merged := current.SystemParams
+	merged.TRamp = upd.TRamp
+	merged.ZeroPad = upd.ZeroPad
+	merged.FrontendEn = boolToByte(upd.FrontendEn)
+	merged.PowerSaveEn = boolToByte(upd.PowerSaveEn)
+	merged.Norm = boolToByte(upd.Norm)
+	merged.ActChannels = upd.ActChannels
+	merged.MinFreq = upd.MinFreq
+	merged.ManualBW = upd.ManualBW
+	merged.Attenuation = upd.Attenuation
+
+	if _, err := s.client.CommandWithTimeout(ctx, protocol.CmdIDSetup, protocol.EncodeSystemParams(merged), 0, timeout); err != nil {
+		return protocol.Params{}, fmt.Errorf("radar: apply write params (0x0028): %w", err)
+	}
+
+	readBack, err := s.readParamsRetry(ctx, timeout)
+	if err != nil {
+		return protocol.Params{}, err
+	}
+
+	opSetup := protocol.OpSetup{
+		OpMode:       protocol.OpModeAutomatic,
+		AutoMeasType: upd.Mode.AutoMeasType(),
+		AutoDelay:    DefaultAutoDelayMs,
+	}
+	if _, err := s.client.CommandWithTimeout(ctx, protocol.CmdIDOpSetup, protocol.EncodeOpSetup(opSetup), 0, timeout); err != nil {
+		return protocol.Params{}, fmt.Errorf("radar: apply write op params (0x0020): %w", err)
+	}
+
+	s.params = readBack
+	return readBack, nil
+}
+
+// readParamsRetry reads back 0x0029, retrying once to absorb the config-restart
+// window after 0x0028.
+func (s *Session) readParamsRetry(ctx context.Context, timeout time.Duration) (protocol.Params, error) {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		raw, err := s.client.CommandWithTimeout(ctx, protocol.CmdIDSendParams, nil, protocol.ParamsReplySize, timeout)
+		if err == nil {
+			return protocol.DecodeParams(raw)
+		}
+		lastErr = err
+	}
+	return protocol.Params{}, fmt.Errorf("radar: apply read-back (0x0029): %w", lastErr)
+}
+
+// commandCycleTimeout exceeds one measurement cycle so commands sent while the radar
+// restarts its config are not cut short: max(2 s, 2 x (autoDelay + TRamp)).
+func commandCycleTimeout(upd ParamsUpdate) time.Duration {
+	cycle := 2 * time.Duration(DefaultAutoDelayMs+int(upd.TRamp)) * time.Millisecond
+	if cycle < defaultCommandTimeout {
+		cycle = defaultCommandTimeout
+	}
+	return cycle
+}
+
+func boolToByte(b bool) uint8 {
+	if b {
+		return 1
+	}
+	return 0
 }

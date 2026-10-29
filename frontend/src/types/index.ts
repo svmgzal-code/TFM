@@ -46,10 +46,17 @@ export interface OpParams {
   autoDelayMs: number
 }
 
-export interface DataSelection {
-  temperatures: boolean
-  timeDomain: boolean
-  frequencyDomain: boolean
+export interface ParamsUpdate {
+  tRampMs: number
+  zeroPad: number
+  frontendEn: boolean
+  powerSaveEn: boolean
+  norm: boolean
+  actChannels: number
+  minFreqMHz: number
+  manualBWMHz: number
+  attenuation: number
+  mode: MeasurementMode
 }
 
 export interface Recording {

@@ -21,5 +21,6 @@ func New(session *radar.Session) http.Handler {
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 	mux.HandleFunc("GET /api/params", s.handleParams)
+	mux.HandleFunc("PUT /api/params", s.handleParamsPut)
 	return mux
 }

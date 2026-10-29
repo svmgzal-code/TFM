@@ -22,6 +22,9 @@ The directory layout below is the **target**; most of it is now scaffolded.
   empty stubs. As of the first "connect" slice, `internal/protocol` (0x0012/0x0029 codec),
   `internal/radar` (CommandClient + Session connect/disconnect) and `internal/api`
   (REST connect/status/info/params) are implemented; stream, recorder and simulator are still stubs.
+- The "apply settings" slice adds the `0x0028`/`0x0020` encoders, `Session.ApplyParams`
+  (read-modify-write) and `PUT /api/params`, so system params and measurement mode are written
+  to the real radar. `autoDelay` is a fixed backend default (100 ms) until exposed in the UI.
 - The connect slice wires the frontend `ConnectForm` to `POST /api/connect` via a Vite dev proxy
   (`/api`, `/ws` -> `localhost:8080`).
 
@@ -117,8 +120,9 @@ Ask before adding (small, likely useful): 0x0021 (read back operation params),
   (opMode is stored in EEPROM and survives power cycles.)
 - Command timeout must exceed one measurement cycle (about autoDelay + ramp time): the radar
   serves commands between cycles while streaming. Start with max(2 s, 2 x (autoDelay + TRamp)).
-- The app always sets autoMeasType bit 4 (header) and bit 2 (system time) so streams are self-describing.
-  Bits 3, 5, 6 are user-selectable. Bits 7-15 are always 0.
+- The app always sets autoMeasType bit 4 (header), bit 2 (system time) and bit 6 (frequency-domain)
+  so streams are self-describing and FD-only. Bits 3 (temperatures/Tx power) and 5 (time-domain)
+  are never set. Bits 7-15 are always 0.
 - **Regulatory guard**: EU license-free band is 24.000-24.250 GHz. Bands 5-13, or any
   MinFreq + ManualBW > 24250 MHz, show a warning and need explicit confirmation. Default is band <= 4.
 
@@ -164,7 +168,7 @@ TypeScript:
 
 ## Build order (vertical slices; commit after each)
 1. ~~Scaffold + `protocol` codec for 0x0012 / 0x0029 / 0x0028 / 0x0020 payloads (+ golden tests)~~
-   (0x0012 / 0x0029 codec done for connect; 0x0028 / 0x0020 encode still pending)
+   (all four codecs + golden tests done; apply via `Session.ApplyParams` + `PUT /api/params`)
 2. Stream frame decoder (+ fuzz test)
 3. Simulator (command port + stream port)
 4. ~~`CommandClient` and `StreamClient`~~ (CommandClient done for connect; StreamClient pending)
