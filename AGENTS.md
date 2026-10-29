@@ -12,7 +12,18 @@ Read `docs/protocol.md` before touching `backend/internal/protocol` or
 but its text extraction is lossy (some formulas are garbled). Prefer `docs/protocol.md`
 and flag any conflict you notice instead of silently picking one.
 
-The directory layout below is the **target**. The repo starts empty; scaffolding is the first task.
+The directory layout below is the **target**; most of it is now scaffolded.
+
+### Current status
+- **Frontend** (React + TS + Vite) is scaffolded: `App.tsx` and all components/hooks exist,
+  but they still use hardcoded mock data (see `src/App.tsx`); `api/client.ts`, `ws.ts` and most
+  hooks are stubs.
+- **Backend** package layout exists (`go.mod` = `tfm/backend`, go 1.22) but the `.go` files were
+  empty stubs. As of the first "connect" slice, `internal/protocol` (0x0012/0x0029 codec),
+  `internal/radar` (CommandClient + Session connect/disconnect) and `internal/api`
+  (REST connect/status/info/params) are implemented; stream, recorder and simulator are still stubs.
+- The connect slice wires the frontend `ConnectForm` to `POST /api/connect` via a Vite dev proxy
+  (`/api`, `/ws` -> `localhost:8080`).
 
 ## Scope
 Commands implemented, and ONLY these:
@@ -152,11 +163,12 @@ TypeScript:
 `docs/protocol.md` and the simulator are updated if protocol behaviour changed.
 
 ## Build order (vertical slices; commit after each)
-1. Scaffold + `protocol` codec for 0x0012 / 0x0029 / 0x0028 / 0x0020 payloads (+ golden tests)
+1. ~~Scaffold + `protocol` codec for 0x0012 / 0x0029 / 0x0028 / 0x0020 payloads (+ golden tests)~~
+   (0x0012 / 0x0029 codec done for connect; 0x0028 / 0x0020 encode still pending)
 2. Stream frame decoder (+ fuzz test)
 3. Simulator (command port + stream port)
-4. `CommandClient` and `StreamClient`
-5. `Session` state machine + REST
+4. ~~`CommandClient` and `StreamClient`~~ (CommandClient done for connect; StreamClient pending)
+5. ~~`Session` state machine + REST~~ (connect/disconnect/status/info/params done; stream/record pending)
 6. WebSocket fan-out + recorder
 7. Frontend: connect -> info -> params -> live chart -> record
 

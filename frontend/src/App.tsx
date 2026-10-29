@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ConnectForm } from './components/ConnectForm'
 import { StatusBar } from './components/StatusBar'
 import { InfoPanel } from './components/InfoPanel'
@@ -6,8 +6,9 @@ import { ParamsForm } from './components/ParamsForm'
 import { LiveChart } from './components/LiveChart'
 import { RecordControls } from './components/RecordControls'
 import { useTheme } from './hooks/useTheme'
+import { useStatus } from './hooks/useStatus'
+import { connect, disconnect } from './api/client'
 import type {
-  ConnectionState,
   DataSelection,
   MeasurementMode,
   RadarInfo,
@@ -67,7 +68,6 @@ const MOCK_RECORDINGS: Recording[] = [
 ]
 
 export default function App() {
-  const [connection, setConnection] = useState<ConnectionState>('disconnected')
   const [recording, setRecording] = useState(false)
   const [mode, setMode] = useState<MeasurementMode>('fmcw_up')
   const [selection, setSelection] = useState<DataSelection>({
@@ -76,23 +76,41 @@ export default function App() {
     frequencyDomain: true,
   })
   const { theme, toggle } = useTheme()
+  const { status, refresh } = useStatus()
+
+  const handleConnect = useCallback(
+    async (host: string, commandPort: number, streamPort: number) => {
+      await connect({ host, commandPort, streamPort })
+      await refresh()
+    },
+    [refresh],
+  )
+
+  const handleDisconnect = useCallback(async () => {
+    await disconnect()
+    await refresh()
+  }, [refresh])
 
   const chartMode = mode === 'cw' ? 'cw' : 'fmcw'
 
   return (
     <div className="app">
       <StatusBar
-        connection={connection}
+        connection={status.connection}
         recording={recording}
-        host="192.168.1.2"
-        commandPort={1024}
-        streamPort={47475}
+        host={status.host || '—'}
+        commandPort={status.commandPort}
+        streamPort={status.streamPort}
         theme={theme}
         onToggleTheme={toggle}
       />
       <main className="layout">
         <div className="left-column">
-          <ConnectForm connection={connection} onConnectionChange={setConnection} />
+          <ConnectForm
+            connection={status.connection}
+            onConnect={handleConnect}
+            onDisconnect={handleDisconnect}
+          />
           <ParamsForm
             params={MOCK_PARAMS}
             mode={mode}

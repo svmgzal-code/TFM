@@ -3,7 +3,8 @@ import type { ConnectionState } from '../types'
 
 interface ConnectFormProps {
   connection: ConnectionState
-  onConnectionChange: (next: ConnectionState) => void
+  onConnect: (host: string, commandPort: number, streamPort: number) => Promise<void>
+  onDisconnect: () => Promise<void>
 }
 
 const STATUS_LABEL: Record<ConnectionState, string> = {
@@ -12,16 +13,29 @@ const STATUS_LABEL: Record<ConnectionState, string> = {
   streaming: 'Streaming',
 }
 
-export function ConnectForm({ connection, onConnectionChange }: ConnectFormProps) {
+export function ConnectForm({ connection, onConnect, onDisconnect }: ConnectFormProps) {
   const [host, setHost] = useState('192.168.1.2')
   const [commandPort, setCommandPort] = useState('1024')
   const [streamPort, setStreamPort] = useState('47475')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const isConnected = connection !== 'disconnected'
 
-  const handleToggle = () => {
-    // TODO: replace with real POST /api/connect and POST /api/disconnect.
-    onConnectionChange(isConnected ? 'disconnected' : 'connected')
+  const handleToggle = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      if (isConnected) {
+        await onDisconnect()
+      } else {
+        await onConnect(host, Number(commandPort), Number(streamPort))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -34,7 +48,7 @@ export function ConnectForm({ connection, onConnectionChange }: ConnectFormProps
           value={host}
           onChange={(e) => setHost(e.target.value)}
           placeholder="192.168.1.2"
-          disabled={isConnected}
+          disabled={isConnected || busy}
         />
       </div>
       <div className="field-row two-col">
@@ -43,7 +57,7 @@ export function ConnectForm({ connection, onConnectionChange }: ConnectFormProps
           id="command-port"
           value={commandPort}
           onChange={(e) => setCommandPort(e.target.value)}
-          disabled={isConnected}
+          disabled={isConnected || busy}
         />
       </div>
       <div className="field-row two-col">
@@ -52,12 +66,13 @@ export function ConnectForm({ connection, onConnectionChange }: ConnectFormProps
           id="stream-port"
           value={streamPort}
           onChange={(e) => setStreamPort(e.target.value)}
-          disabled={isConnected}
+          disabled={isConnected || busy}
         />
       </div>
+      {error && <div className="warning-banner">{error}</div>}
       <div className="connect-actions">
-        <button className="btn" onClick={handleToggle}>
-          {isConnected ? 'Disconnect' : 'Connect'}
+        <button className="btn" onClick={handleToggle} disabled={busy}>
+          {busy ? 'Working…' : isConnected ? 'Disconnect' : 'Connect'}
         </button>
         <span className={`badge badge-${connection}`}>{STATUS_LABEL[connection]}</span>
       </div>
